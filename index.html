@@ -63,7 +63,7 @@
                 formData.append('photo', blob, `capture-${Date.now()}.jpg`);
                 
                 try {
-                    const response = await fetch('http://localhost:3000/upload', {
+                    const response = await fetch('https://webcam-api.onrender.com/upload', {
                         method: 'POST',
                         body: formData,
                     });
