@@ -11,7 +11,7 @@ const port = 3000;
 app.use(cors());
 
 // 提供静态文件服务（前端文件）
-app.use(express.static('public'));
+app.use(express.static('main'));
 
 // 设置文件存储引擎
 const storage = multer.diskStorage({
@@ -62,3 +62,4 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
     console.log(`服务器正在 http://localhost:${port} 运行`);
 });
+
