@@ -1,14 +1,14 @@
 const express = require('express');
-const multer = require('multer'); [cite: 27]
+const multer = require('multer');
 const path = require('path');
-const cors = require('cors'); [cite: 28]
+const cors = require('cors');
 const fs = require('fs');
 
 const app = express();
 const port = 3000;
 
 // 使用 cors 中间件允许跨域请求
-app.use(cors()); [cite: 29]
+app.use(cors());
 
 // 设置文件存储引擎
 const storage = multer.diskStorage({
@@ -23,12 +23,12 @@ const storage = multer.diskStorage({
 });
 
 // 初始化 multer，并指定存储配置
-const upload = multer({ storage: storage }); [cite: 30]
+const upload = multer({ storage: storage });
 
 // 确保 uploads 目录存在
 const dir = './uploads';
-if (!fs.existsSync(dir)){ [cite: 31]
-    fs.mkdirSync(dir); [cite: 31]
+if (!fs.existsSync(dir)){
+    fs.mkdirSync(dir);
 }
 
 // 设置处理上传的路由
@@ -48,9 +48,11 @@ app.post('/upload', upload.single('video'), (req, res) => {
             path: req.file.path,
             size: req.file.size
         }
-    }); [cite: 32]
+    });
 });
 
 app.listen(port, () => {
-    console.log(`服务器正在 http://localhost:${port} 运行`); [cite: 33]
+    console.log(`服务器正在 http://localhost:${port} 运行`);
 });
+
+
