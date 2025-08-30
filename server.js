@@ -55,14 +55,11 @@ app.post('/upload', upload.single('file'), (req, res) => {
     });
 });
 
-// 处理根路径请求，返回 index.html（这里假设你的前端文件放在 'public' 文件夹里）
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 // 启动服务器
 app.listen(port, () => {
     console.log(`服务器正在 http://localhost:${port} 运行`);
 });
+
 
 
